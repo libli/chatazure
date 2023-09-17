@@ -81,6 +81,48 @@ func (p *ProxyHandler) Proxy(w http.ResponseWriter, r *http.Request) {
 	proxy.ServeHTTP(w, r)
 }
 
+func (p *ProxyHandler) HandleModels(w http.ResponseWriter, r *http.Request) {
+	// CORS
+	if r.Method == http.MethodOptions {
+		handleOPTIONS(w)
+		return
+	}
+
+	auth := r.Header.Get("Authorization")
+
+	tlog.Info.Printf("auth: %s", auth)
+	if auth == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte("Unauthorized"))
+		return
+	}
+	password := strings.TrimPrefix(auth, "Bearer ")
+	if !p.checkUser(password) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte("Unauthorized"))
+		return
+	}
+
+	director := func(req *http.Request) {
+		req.Header.Set("api-key", p.azureConfig.ApiKey)
+		req.Header.Del("Authorization")
+		originURL := req.URL.String()
+		parseEndpoint, _ := url.Parse(p.azureConfig.Endpoint)
+		r.Host = parseEndpoint.Host
+		r.URL.Scheme = parseEndpoint.Scheme
+		r.URL.Host = parseEndpoint.Host
+
+		r.URL.Path = "/openai/models"
+		r.URL.RawPath = r.URL.EscapedPath()
+		query := r.URL.Query()
+		query.Add("api-version", p.azureConfig.ApiVersion)
+		r.URL.RawQuery = query.Encode()
+		tlog.Info.Printf("proxying request %s -> %s", originURL, req.URL.String())
+	}
+	proxy := &httputil.ReverseProxy{Director: director}
+	proxy.ServeHTTP(w, r)
+}
+
 // checkUser checks if the password is valid.
 func (p *ProxyHandler) checkUser(password string) bool {
 	user := p.user.GetByPassword(password)

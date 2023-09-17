@@ -44,6 +44,7 @@ func main() {
 	proxy := handler.NewProxyHandler(sqliteRepo.User, cfg.Azure)
 
 	http.HandleFunc("/", proxy.Proxy)
+	http.HandleFunc("/v1/models", proxy.HandleModels)
 	http.HandleFunc("/health", health)
 	tlog.Info.Printf("web server at port: %s", cfg.Web.Port)
 	log.Fatal(http.ListenAndServe(":"+cfg.Web.Port, nil))
