@@ -1,0 +1,17 @@
+web:
+  port: 8080
+  dbName: chat.db
+azure:
+  endpoint: https://xxx.openai.azure.com/
+  api-version: 2023-07-01-preview
+  api-key: xxxxxxxxxxxxx
+  deployments:
+    "gpt-3.5-turbo": gpt-35-turbo
+    "gpt-3.5-turbo-16k": gpt-35-turbo-16k
+    "gpt-4": gpt-4
+    "gpt-4-32k": gpt-4-32k
+users:
+  - username: user1
+    password: password1@user1
+  - username: user2
+    password: password2@user2
