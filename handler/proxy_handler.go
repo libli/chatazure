@@ -84,7 +84,7 @@ func (p *ProxyHandler) Proxy(w http.ResponseWriter, r *http.Request) {
 // checkUser checks if the password is valid.
 func (p *ProxyHandler) checkUser(password string) bool {
 	user := p.user.GetByPassword(password)
-	if user == nil {
+	if user == nil || user.Password != password {
 		tlog.Info.Printf("user password: %s not found", password)
 		return false
 	}
