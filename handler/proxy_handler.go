@@ -108,15 +108,15 @@ func (p *ProxyHandler) HandleModels(w http.ResponseWriter, r *http.Request) {
 		req.Header.Del("Authorization")
 		originURL := req.URL.String()
 		parseEndpoint, _ := url.Parse(p.azureConfig.Endpoint)
-		r.Host = parseEndpoint.Host
-		r.URL.Scheme = parseEndpoint.Scheme
-		r.URL.Host = parseEndpoint.Host
+		req.Host = parseEndpoint.Host
+		req.URL.Scheme = parseEndpoint.Scheme
+		req.URL.Host = parseEndpoint.Host
 
-		r.URL.Path = "/openai/models"
-		r.URL.RawPath = r.URL.EscapedPath()
-		query := r.URL.Query()
+		req.URL.Path = "/openai/models"
+		req.URL.RawPath = req.URL.EscapedPath()
+		query := req.URL.Query()
 		query.Add("api-version", p.azureConfig.ApiVersion)
-		r.URL.RawQuery = query.Encode()
+		req.URL.RawQuery = query.Encode()
 		tlog.Info.Printf("proxying request %s -> %s", originURL, req.URL.String())
 	}
 	proxy := &httputil.ReverseProxy{Director: director}
