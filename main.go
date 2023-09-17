@@ -27,6 +27,7 @@ func main() {
 		tlog.Error.Fatalf("failed to get config: %v", err)
 	}
 
+	// 初始化配置文件中的用户，添加到数据库中
 	var users []model.User
 	for _, u := range cfg.Users {
 		user := model.User{
@@ -37,8 +38,9 @@ func main() {
 	}
 	sqliteRepo, err := repo.NewSQLiteRepo(cfg.Web.DBName, users)
 	if err != nil {
-		log.Fatal(err)
+		tlog.Error.Fatalf("failed to init sqlite: %v", err)
 	}
+
 	proxy := handler.NewProxyHandler(sqliteRepo.User, cfg.Azure)
 
 	http.HandleFunc("/", proxy.Proxy)

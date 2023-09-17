@@ -55,11 +55,13 @@ func (p *ProxyHandler) Proxy(w http.ResponseWriter, r *http.Request) {
 
 	director := func(req *http.Request) {
 		body, _ := io.ReadAll(req.Body)
+		// Restore the io.ReadCloser to its original state
+		// 如果没有这一步，req.Body 会被读取后就为空
 		req.Body = io.NopCloser(bytes.NewBuffer(body))
 
+		// 从 body 中获取模型名称
 		var result map[string]interface{}
 		_ = json.Unmarshal(body, &result)
-
 		modelValue, _ := result["model"].(string)
 
 		// 将模型名称从请求中映射到部署名称
@@ -82,7 +84,7 @@ func (p *ProxyHandler) Proxy(w http.ResponseWriter, r *http.Request) {
 // checkUser checks if the password is valid.
 func (p *ProxyHandler) checkUser(password string) bool {
 	user := p.user.GetByPassword(password)
-	if user == nil || user.Password != password {
+	if user == nil {
 		tlog.Info.Printf("user password: %s not found", password)
 		return false
 	}
@@ -108,6 +110,7 @@ func (p *ProxyHandler) convertReq(r *http.Request, deploymentName string) *http.
 	return r
 }
 
+// handleOPTIONS handles the OPTIONS request.
 func handleOPTIONS(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "*")
