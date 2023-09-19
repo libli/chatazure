@@ -1,22 +1,16 @@
 package main
 
 import (
-	"fmt"
-	"log"
 	"net/http"
 
 	"chatazure/config"
-	"chatazure/handler"
+	"chatazure/interfaces"
 	"chatazure/model"
 	"chatazure/repo"
 	"chatazure/tlog"
 )
 
 var version = "unknown"
-
-func health(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "ok")
-}
 
 func main() {
 	tlog.Info.Printf("chat azure (%s)", version)
@@ -41,11 +35,10 @@ func main() {
 		tlog.Error.Fatalf("failed to init sqlite: %v", err)
 	}
 
-	proxy := handler.NewProxyHandler(sqliteRepo.User, cfg.Azure)
-
-	http.HandleFunc("/", proxy.Proxy)
-	http.HandleFunc("/v1/models", proxy.HandleModels)
-	http.HandleFunc("/health", health)
-	tlog.Info.Printf("web server at port: %s", cfg.Web.Port)
-	log.Fatal(http.ListenAndServe(":"+cfg.Web.Port, nil))
+	mux := interfaces.SetupRouter(sqliteRepo, cfg)
+	port := ":" + cfg.Web.Port
+	tlog.Info.Printf("Starting server on %s", port)
+	if err := http.ListenAndServe(port, mux); err != nil {
+		tlog.Error.Fatalf("Server failed: %v", err)
+	}
 }

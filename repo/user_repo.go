@@ -19,19 +19,20 @@ func newUserRepo(db *gorm.DB) *UserRepo {
 }
 
 // Add 添加用户
-func (u *UserRepo) Add(user *model.User) {
+func (u *UserRepo) Add(user *model.User) error {
 	tlog.Info.Printf("Add user: %v", user)
-	u.db.Create(&user)
+	result := u.db.Create(user)
+	return result.Error
 }
 
-// GetByPassword 根据 password 获取用户
+// GetByPassword 根据 password 获取没被禁用的用户
 func (u *UserRepo) GetByPassword(password string) *model.User {
 	var user model.User
 	u.db.Where("password = ? AND status = ?", password, 1).First(&user)
 	return &user
 }
 
-// GetByName 根据username获取用户
+// GetByName 根据 username 获取用户
 func (u *UserRepo) GetByName(name string) *model.User {
 	var user model.User
 	u.db.Where("username = ?", name).First(&user)

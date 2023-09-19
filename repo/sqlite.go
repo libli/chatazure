@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"fmt"
 	"time"
 
 	"chatazure/model"
@@ -16,9 +17,9 @@ type SQLiteRepo struct {
 	User *UserRepo
 }
 
-// NewSQLiteRepo 创建 SQLite 数据库
+// NewSQLiteRepo 创建 SQLite 数据库, 并初始化用户
 func NewSQLiteRepo(dbname string, users []model.User) (*SQLiteRepo, error) {
-	tlog.Info.Printf("Init sqlite: %v", dbname)
+	tlog.Info.Printf("init sqlite: %v", dbname)
 	db, err := gorm.Open(sqlite.Open(dbname), &gorm.Config{})
 	if err != nil {
 		tlog.Error.Printf("failed to open db: %v", err)
@@ -28,23 +29,13 @@ func NewSQLiteRepo(dbname string, users []model.User) (*SQLiteRepo, error) {
 		db:   db,
 		User: newUserRepo(db),
 	}
-	repo.AutoMigrate()
-	for _, it := range users {
-		it.CreateTime = time.Now()
-		u := repo.User.GetByName(it.Username)
-		if u.Username == it.Username && u.Password == it.Password {
-			continue
-		} else {
-			if u.Username == it.Username {
-				u.Password = it.Password
-				repo.User.db.Save(u)
-			} else {
-				repo.User.Add(&it)
-				if repo.User.GetByName(it.Username).Username == it.Username {
-					tlog.Info.Printf("init user: %v", it.Username)
-				}
-			}
-		}
+	if err := repo.AutoMigrate(); err != nil {
+		tlog.Error.Printf("failed to auto migrate db: %v", err)
+		return nil, err
+	}
+	if err := repo.initUsers(users); err != nil {
+		tlog.Error.Printf("failed to init users: %v", err)
+		return nil, err
 	}
 	return &repo, nil
 }
@@ -52,4 +43,28 @@ func NewSQLiteRepo(dbname string, users []model.User) (*SQLiteRepo, error) {
 // AutoMigrate 创建用户表
 func (r *SQLiteRepo) AutoMigrate() error {
 	return r.db.AutoMigrate(&model.User{})
+}
+
+// initUsers 初始化用户
+func (r *SQLiteRepo) initUsers(users []model.User) error {
+	for _, user := range users {
+		user.CreateTime = time.Now()
+		user.UpdateTime = time.Now()
+		existingUser := r.User.GetByName(user.Username)
+		if existingUser.Username == user.Username {
+			// 用户已存在, 更新密码
+			if existingUser.Password != user.Password {
+				existingUser.Password = user.Password
+				r.User.db.Save(&existingUser)
+			}
+		} else {
+			err := r.User.Add(&user)
+			if err != nil {
+				tlog.Error.Printf("failed to add user: %v", err)
+				return fmt.Errorf("failed to add user %v: %w", user.Username, err)
+			}
+			tlog.Info.Printf("init user: %v", user.Username)
+		}
+	}
+	return nil
 }

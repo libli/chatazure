@@ -16,11 +16,8 @@ type Config struct {
 		Port   string `yaml:"port"`
 		DBName string `yaml:"dbName"`
 	} `yaml:"web"`
-	Azure AzureConfig `yaml:"azure"`
-	Users []struct {
-		Username string `yaml:"username"`
-		Password string `yaml:"password"`
-	} `yaml:"users"`
+	Azure AzureConfig  `yaml:"azure"`
+	Users []UserConfig `yaml:"users"`
 }
 
 // AzureConfig azure配置信息
@@ -29,6 +26,12 @@ type AzureConfig struct {
 	ApiVersion  string            `yaml:"api-version"`
 	ApiKey      string            `yaml:"api-key"`
 	Deployments map[string]string `yaml:"deployments"`
+}
+
+// UserConfig 初始化用户信息
+type UserConfig struct {
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
 }
 
 // Get 获取配置信息

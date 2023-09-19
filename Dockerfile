@@ -9,7 +9,7 @@ RUN go mod download -x
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s -X main.version=v1.0.0" -x -o chatazure .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s -X main.version=v1.1.0" -x -o chatazure .
 
 # runner
 FROM debian:bullseye-slim
