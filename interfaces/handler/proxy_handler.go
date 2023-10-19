@@ -38,48 +38,44 @@ func (p *ProxyHandler) HandleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shouldProxy := true
+	body, _ := io.ReadAll(r.Body)
+
+	// 从 body 中获取模型名称
+	var result map[string]interface{}
+	_ = json.Unmarshal(body, &result)
+	modelValue, _ := result["model"].(string)
+
+	// 将模型名称从请求中映射到部署名称
+	deploymentName, exists := p.azureConfig.Deployments[modelValue]
+	if !exists {
+		http.Error(w, "Unsupported model", http.StatusBadRequest)
+		tlog.Info.Printf("<<%s>> request unsupported model: %s", username, modelValue)
+		return
+	}
+
+	// 如果用户没有权限使用 gpt-4，且请求的模型是 gpt-4，则返回 403
+	if strings.HasPrefix(modelValue, "gpt-4") && !canUseGPT4 {
+		http.Error(w, "Forbidden Use GPT-4", http.StatusForbidden)
+		tlog.Info.Printf("<<%s>> forbidden use gpt-4: %s", username, modelValue)
+		return
+	}
+
+	// Restore the io.ReadCloser to its original state
+	// 如果没有这一步，r.Body 会被读取后就为空
+	r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+	// 更新调用次数
+	p.userLogic.UpdateCount(username)
+
 	director := func(req *http.Request) {
-		body, _ := io.ReadAll(req.Body)
-		// Restore the io.ReadCloser to its original state
-		// 如果没有这一步，req.Body 会被读取后就为空
-		req.Body = io.NopCloser(bytes.NewBuffer(body))
-
-		// 从 body 中获取模型名称
-		var result map[string]interface{}
-		_ = json.Unmarshal(body, &result)
-		modelValue, _ := result["model"].(string)
-
-		// 将模型名称从请求中映射到部署名称
-		deploymentName, exists := p.azureConfig.Deployments[modelValue]
-		if !exists {
-			http.Error(w, "Unsupported model", http.StatusBadRequest)
-			shouldProxy = false
-			req.URL = nil // 必须设置为 nil，否则会继续执行 proxy
-			return
-		}
-
-		// 如果用户没有权限使用 gpt-4，且请求的模型是 gpt-4，则返回 403
-		if strings.HasPrefix(modelValue, "gpt-4") && !canUseGPT4 {
-			http.Error(w, "Forbidden Use GPT-4", http.StatusForbidden)
-			shouldProxy = false
-			req.URL = nil
-			return
-		}
-
-		// 更新调用次数
-		p.userLogic.UpdateCount(username)
-
 		originURL := req.URL.String()
 		req = p.setupAzureRequest(req, "/openai/deployments/"+deploymentName+"/chat/completions")
-
 		tlog.Info.Printf("<<%s>> request [%s] proxying: %s -> %s", username, modelValue, originURL, req.URL.String())
 	}
 
-	if shouldProxy {
-		proxy := &httputil.ReverseProxy{Director: director}
-		proxy.ServeHTTP(w, r)
-	}
+	proxy := &httputil.ReverseProxy{Director: director}
+	proxy.ServeHTTP(w, r)
+
 }
 
 // HandleModels is the handler for /v1/models path.

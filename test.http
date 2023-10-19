@@ -1,0 +1,118 @@
+# user1 成功调用 gpt-3.5.turbo
+POST http://localhost:8080/v1/chat/completions
+Content-Type: application/json
+Authorization: Bearer password1@user1
+
+{
+  "model": "gpt-3.5-turbo",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好!"
+    }
+  ]
+}
+
+> {%
+ client.test("响应状态码为200", function() {
+     client.assert(response.status === 200, "响应状态码为200");
+ });
+ client.test("响应JSON body含有id字段", function() {
+     client.assert(response.body.hasOwnProperty("id"), "响应JSON body含有id字段");
+ });
+ %}
+###
+
+# user1 成功调用 gpt-4
+POST http://localhost:8080/v1/chat/completions
+Content-Type: application/json
+Authorization: Bearer password1@user1
+
+{
+  "model": "gpt-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好!"
+    }
+  ]
+}
+
+> {%
+    client.test("响应状态码为200", function() {
+        client.assert(response.status === 200, "响应状态码为200");
+    });
+    client.test("响应JSON body含有id字段", function() {
+        client.assert(response.body.hasOwnProperty("id"), "响应JSON body含有id字段");
+    });
+%}
+###
+
+# user2 成功调用 gpt-3.5.turbo
+POST http://localhost:8080/v1/chat/completions
+Content-Type: application/json
+Authorization: Bearer password2@user2
+
+{
+  "model": "gpt-3.5-turbo",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好!"
+    }
+  ]
+}
+
+> {%
+    client.test("响应状态码为200", function() {
+        client.assert(response.status === 200, "响应状态码为200");
+    });
+    client.test("响应JSON body含有id字段", function() {
+        client.assert(response.body.hasOwnProperty("id"), "响应JSON body含有id字段");
+    });
+%}
+###
+
+# user2 无权限调用 gpt-4
+POST http://localhost:8080/v1/chat/completions
+Content-Type: application/json
+Authorization: Bearer password2@user2
+
+{
+  "model": "gpt-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好!"
+    }
+  ]
+}
+
+> {%
+    client.test("响应状态码为403", function() {
+        client.assert(response.status === 403, "响应状态码为403");
+    });
+%}
+###
+
+# 无授权的 user3
+POST http://localhost:8080/v1/chat/completions
+Content-Type: application/json
+Authorization: Bearer password3@user3
+
+{
+  "model": "gpt-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好!"
+    }
+  ]
+}
+
+> {%
+    client.test("响应状态码为401", function() {
+        client.assert(response.status === 401, "响应状态码为401");
+    });
+%}
+###
