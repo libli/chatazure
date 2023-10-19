@@ -75,7 +75,6 @@ func (p *ProxyHandler) HandleChat(w http.ResponseWriter, r *http.Request) {
 
 	proxy := &httputil.ReverseProxy{Director: director}
 	proxy.ServeHTTP(w, r)
-
 }
 
 // HandleModels is the handler for /v1/models path.
