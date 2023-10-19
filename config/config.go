@@ -32,6 +32,7 @@ type AzureConfig struct {
 type UserConfig struct {
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
+	GPT4     bool   `yaml:"gpt4"`
 }
 
 // Get 获取配置信息

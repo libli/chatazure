@@ -52,12 +52,14 @@ func (r *SQLiteRepo) initUsers(users []model.User) error {
 		user.UpdateTime = time.Now()
 		existingUser := r.User.GetByName(user.Username)
 		if existingUser.Username == user.Username {
-			// 用户已存在, 更新密码
-			if existingUser.Password != user.Password {
+			// 用户已存在, 更新密码，更新 CanUseGPT4
+			if existingUser.Password != user.Password || existingUser.CanUseGPT4 != user.CanUseGPT4 {
 				existingUser.Password = user.Password
+				existingUser.CanUseGPT4 = user.CanUseGPT4
 				r.User.db.Save(&existingUser)
 			}
 		} else {
+			// 用户不存在, 添加用户
 			err := r.User.Add(&user)
 			if err != nil {
 				tlog.Error.Printf("failed to add user: %v", err)

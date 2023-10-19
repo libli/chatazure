@@ -13,5 +13,7 @@ azure:
 users:
   - username: user1
     password: password1@user1
+    gpt4: true
   - username: user2
     password: password2@user2
+    gpt4: false

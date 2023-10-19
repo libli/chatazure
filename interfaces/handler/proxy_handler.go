@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 
 	"chatazure/config"
 	"chatazure/interfaces/response"
@@ -32,11 +33,12 @@ func NewProxyHandler(user *repo.UserRepo, config config.AzureConfig) *ProxyHandl
 // HandleChat is the handler for /v1/chat/completions path.
 func (p *ProxyHandler) HandleChat(w http.ResponseWriter, r *http.Request) {
 	handleCORSRequest(w, r)
-	isAuthenticated, username := p.authRequest(w, r)
+	isAuthenticated, username, canUseGPT4 := p.authRequest(w, r)
 	if !isAuthenticated {
 		return
 	}
 
+	shouldProxy := true
 	director := func(req *http.Request) {
 		body, _ := io.ReadAll(req.Body)
 		// Restore the io.ReadCloser to its original state
@@ -52,22 +54,38 @@ func (p *ProxyHandler) HandleChat(w http.ResponseWriter, r *http.Request) {
 		deploymentName, exists := p.azureConfig.Deployments[modelValue]
 		if !exists {
 			http.Error(w, "Unsupported model", http.StatusBadRequest)
+			shouldProxy = false
+			req.URL = nil // 必须设置为 nil，否则会继续执行 proxy
 			return
 		}
+
+		// 如果用户没有权限使用 gpt-4，且请求的模型是 gpt-4，则返回 403
+		if strings.HasPrefix(modelValue, "gpt-4") && !canUseGPT4 {
+			http.Error(w, "Forbidden Use GPT-4", http.StatusForbidden)
+			shouldProxy = false
+			req.URL = nil
+			return
+		}
+
+		// 更新调用次数
+		p.userLogic.UpdateCount(username)
 
 		originURL := req.URL.String()
 		req = p.setupAzureRequest(req, "/openai/deployments/"+deploymentName+"/chat/completions")
 
 		tlog.Info.Printf("<<%s>> request [%s] proxying: %s -> %s", username, modelValue, originURL, req.URL.String())
 	}
-	proxy := &httputil.ReverseProxy{Director: director}
-	proxy.ServeHTTP(w, r)
+
+	if shouldProxy {
+		proxy := &httputil.ReverseProxy{Director: director}
+		proxy.ServeHTTP(w, r)
+	}
 }
 
 // HandleModels is the handler for /v1/models path.
 func (p *ProxyHandler) HandleModels(w http.ResponseWriter, r *http.Request) {
 	handleCORSRequest(w, r)
-	isAuthenticated, username := p.authRequest(w, r)
+	isAuthenticated, username, _ := p.authRequest(w, r)
 	if !isAuthenticated {
 		return
 	}
@@ -84,16 +102,16 @@ func (p *ProxyHandler) HandleModels(w http.ResponseWriter, r *http.Request) {
 }
 
 // authRequest authenticates the request.
-func (p *ProxyHandler) authRequest(w http.ResponseWriter, r *http.Request) (bool, string) {
+func (p *ProxyHandler) authRequest(w http.ResponseWriter, r *http.Request) (bool, string, bool) {
 	token := extractAuthToken(r)
-	isAuthenticated, username := p.userLogic.Auth(token)
+	isAuthenticated, username, canUseGPT4 := p.userLogic.Auth(token)
 	if !isAuthenticated {
 		tlog.Warn.Printf("unauthorized request: %s", token)
 		response.Unauthorized(w)
-		return false, ""
+		return false, "", false
 	}
 	tlog.Info.Printf("authorized user: %s", username)
-	return true, username
+	return true, username, canUseGPT4
 }
 
 // setupAzureRequest sets up the Azure request.
