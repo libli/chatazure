@@ -22,10 +22,11 @@ type Config struct {
 
 // AzureConfig azure配置信息
 type AzureConfig struct {
-	Endpoint    string            `yaml:"endpoint"`
-	ApiVersion  string            `yaml:"api-version"`
-	ApiKey      string            `yaml:"api-key"`
-	Deployments map[string]string `yaml:"deployments"`
+	Endpoint      string            `yaml:"endpoint"`
+	ApiVersion    string            `yaml:"api-version"`
+	ApiKey        string            `yaml:"api-key"`
+	ResponsesPath string            `yaml:"responses-path"`
+	Deployments   map[string]string `yaml:"deployments"`
 }
 
 // UserConfig 初始化用户信息

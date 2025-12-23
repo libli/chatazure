@@ -6,13 +6,15 @@
 2. 支持用户管理功能，为每个用户分配独立的 key，团队使用
 3. 统计每个用户的 API 调用次数
 4. 支持 SSE
-5. 支持限制用户使用 GPT-4
+5. 支持 Responses API（`/v1/responses`）与 Azure 原生 `/openai/*/responses` 直通（便于 Azure SDK）
 
 ## 部署
 
 1. 创建配置文件 config.yaml，参考 config.yaml.example
 
 users 是你想分配的用户名和密码。用户用该配置文件里的 password 即可在各种 OpenAI 客户端中调用 Azure 的 API。
+
+说明：历史版本中 `users.gpt4` 用于限制 GPT-4 权限，本版本已不再做任何 GPT-4 限制判断（字段保留仅为兼容旧配置/旧库）。
 
 2. 创建一个空的数据库文件 chat.db:
 

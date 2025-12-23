@@ -89,8 +89,8 @@ Authorization: Bearer password2@user2
 }
 
 > {%
-    client.test("响应状态码为403", function() {
-        client.assert(response.status === 403, "响应状态码为403");
+    client.test("响应状态码为200（已不再限制 gpt-4）", function() {
+        client.assert(response.status === 200, "响应状态码为200");
     });
 %}
 ###
@@ -113,6 +113,40 @@ Authorization: Bearer password3@user3
 > {%
     client.test("响应状态码为401", function() {
         client.assert(response.status === 401, "响应状态码为401");
+    });
+%}
+###
+
+# Responses API（OpenAI 兼容）：创建文本响应
+POST http://localhost:8080/v1/responses
+Content-Type: application/json
+Authorization: Bearer password1@user1
+
+{
+  "model": "gpt-4",
+  "input": "请用一句话介绍你自己"
+}
+
+> {%
+    client.test("响应状态码为200", function() {
+        client.assert(response.status === 200, "响应状态码为200");
+    });
+%}
+###
+
+# Responses API（Azure 原生直通）：/openai/v1/responses
+POST http://localhost:8080/openai/v1/responses
+Content-Type: application/json
+Authorization: Bearer password1@user1
+
+{
+  "model": "gpt-4",
+  "input": "hello from azure passthrough"
+}
+
+> {%
+    client.test("响应状态码为200", function() {
+        client.assert(response.status === 200, "响应状态码为200");
     });
 %}
 ###

@@ -5,6 +5,8 @@ azure:
   endpoint: https://xxx.openai.azure.com/
   api-version: 2023-07-01-preview
   api-key: xxxxxxxxxxxxx
+  # Responses API path (Azure 文档推荐 v1)。如你的资源只支持旧路径，可改为 /openai/responses
+  responses-path: /openai/v1/responses
   deployments:
     "gpt-3.5-turbo": gpt-35-turbo
     "gpt-3.5-turbo-16k": gpt-35-turbo-16k
