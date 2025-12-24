@@ -3,7 +3,7 @@
 
 IMAGE_NAME := libli/chatazure
 DOCKER_REPO := docker.io
-VERSION := 1.4
+VERSION := 1.5
 BUILDER_NAME := multiarch-builder
 
 # 定义要支持的平台
