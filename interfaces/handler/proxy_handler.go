@@ -176,7 +176,7 @@ func (p *ProxyHandler) HandleAzureResponsesPassthrough(w http.ResponseWriter, r 
 	director := func(req *http.Request) {
 		originURL := req.URL.String()
 		path := req.URL.Path
-		req = p.setupAzureRequest(req, path)
+		req = p.setupAzureRequestWithoutApiVersion(req, path)
 		tlog.Info.Printf("<<%s>> request [azure-responses] proxying: %s -> %s", username, originURL, req.URL.String())
 	}
 
@@ -226,6 +226,16 @@ func (p *ProxyHandler) setupAzureRequest(req *http.Request, path string) *http.R
 	// Use Set to avoid duplicating api-version if caller already provided one.
 	query.Set("api-version", p.azureConfig.ApiVersion)
 	req.URL.RawQuery = query.Encode()
+	return req
+}
+
+// setupAzureRequestWithoutApiVersion sets up Azure request without api-version query param.
+// Used for endpoints like /openai/v1/responses that don't require api-version.
+func (p *ProxyHandler) setupAzureRequestWithoutApiVersion(req *http.Request, path string) *http.Request {
+	req = p.setupAzureHeader(req)
+	req = p.setupAzureEndpoint(req)
+	req.URL.Path = path
+	req.URL.RawPath = req.URL.EscapedPath()
 	return req
 }
 
