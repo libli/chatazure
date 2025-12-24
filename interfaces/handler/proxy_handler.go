@@ -39,6 +39,9 @@ func (p *ProxyHandler) HandleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 标记是否使用 web_search 模式
+	useWebSearch := false
+
 	// 对于有 body 的请求，尝试映射 model 名称
 	if r.Method == http.MethodPost && r.Body != nil {
 		body, err := io.ReadAll(r.Body)
@@ -48,6 +51,7 @@ func (p *ProxyHandler) HandleProxy(w http.ResponseWriter, r *http.Request) {
 				if modelValue, ok := payload["model"].(string); ok && modelValue != "" {
 					// 检查是否需要启用 web_search
 					if p.shouldEnableWebSearch(modelValue) {
+						useWebSearch = true
 						payload["tools"] = []map[string]interface{}{
 							{"type": "web_search_preview"},
 						}
@@ -79,10 +83,16 @@ func (p *ProxyHandler) HandleProxy(w http.ResponseWriter, r *http.Request) {
 		originURL := req.URL.String()
 		originPath := req.URL.Path
 
-		// 计算目标路径：/v1/* -> /openai/v1/*，/openai/* 保持不变
-		targetPath := originPath
-		if strings.HasPrefix(originPath, "/v1/") {
-			targetPath = "/openai" + originPath
+		var targetPath string
+		if useWebSearch {
+			// web_search 模式使用 /openai/v1/responses 端点
+			targetPath = "/openai/v1/responses"
+		} else {
+			// 计算目标路径：/v1/* -> /openai/v1/*，/openai/* 保持不变
+			targetPath = originPath
+			if strings.HasPrefix(originPath, "/v1/") {
+				targetPath = "/openai" + originPath
+			}
 		}
 
 		req = p.setupAzureRequest(req, targetPath)
