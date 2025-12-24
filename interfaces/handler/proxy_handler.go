@@ -49,9 +49,13 @@ func (p *ProxyHandler) HandleProxy(w http.ResponseWriter, r *http.Request) {
 					// 如果有映射配置，则替换 model 名称
 					if deploymentName, exists := p.azureConfig.Deployments[modelValue]; exists {
 						payload["model"] = deploymentName
+						tlog.Info.Printf("<<%s>> model mapping: %s -> %s", username, modelValue, deploymentName)
 						if newBody, err := json.Marshal(payload); err == nil {
 							body = newBody
 						}
+					} else {
+						// 没有映射配置，使用原始 model
+						tlog.Info.Printf("<<%s>> model: %s (no mapping)", username, modelValue)
 					}
 				}
 			}
