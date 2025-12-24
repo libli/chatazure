@@ -55,6 +55,11 @@ func (p *ProxyHandler) HandleProxy(w http.ResponseWriter, r *http.Request) {
 						payload["tools"] = []map[string]interface{}{
 							{"type": "web_search_preview"},
 						}
+						// 将 messages 转换为 input（responses API 使用 input 而非 messages）
+						if messages, exists := payload["messages"]; exists {
+							payload["input"] = messages
+							delete(payload, "messages")
+						}
 						tlog.Info.Printf("<<%s>> enabled web_search for model: %s", username, modelValue)
 					}
 					// 如果有映射配置，则替换 model 名称
