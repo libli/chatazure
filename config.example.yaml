@@ -11,6 +11,10 @@ azure:
     "gpt-3.5-turbo-16k": gpt-35-turbo-16k
     "gpt-4": gpt-4
     "gpt-4-32k": gpt-4-32k
+  # 需要启用 web_search 功能的模型列表
+  # 这些模型的请求会自动添加 tools: [{"type": "web_search_preview"}]
+  web_search_models:
+    - "gpt-5-pro-2025-10-06"
 users:
   - username: user1
     password: password1@user1

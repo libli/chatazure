@@ -22,9 +22,10 @@ type Config struct {
 
 // AzureConfig azure配置信息
 type AzureConfig struct {
-	Endpoint    string            `yaml:"endpoint"`
-	ApiKey      string            `yaml:"api-key"`
-	Deployments map[string]string `yaml:"deployments"`
+	Endpoint        string            `yaml:"endpoint"`
+	ApiKey          string            `yaml:"api-key"`
+	Deployments     map[string]string `yaml:"deployments"`
+	WebSearchModels []string          `yaml:"web_search_models"` // 需要启用 web_search 的模型列表
 }
 
 // UserConfig 初始化用户信息

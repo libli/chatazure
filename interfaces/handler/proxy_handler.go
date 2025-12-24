@@ -46,16 +46,24 @@ func (p *ProxyHandler) HandleProxy(w http.ResponseWriter, r *http.Request) {
 			var payload map[string]interface{}
 			if json.Unmarshal(body, &payload) == nil {
 				if modelValue, ok := payload["model"].(string); ok && modelValue != "" {
+					// 检查是否需要启用 web_search
+					if p.shouldEnableWebSearch(modelValue) {
+						payload["tools"] = []map[string]interface{}{
+							{"type": "web_search_preview"},
+						}
+						tlog.Info.Printf("<<%s>> enabled web_search for model: %s", username, modelValue)
+					}
 					// 如果有映射配置，则替换 model 名称
 					if deploymentName, exists := p.azureConfig.Deployments[modelValue]; exists {
 						payload["model"] = deploymentName
 						tlog.Info.Printf("<<%s>> model mapping: %s -> %s", username, modelValue, deploymentName)
-						if newBody, err := json.Marshal(payload); err == nil {
-							body = newBody
-						}
 					} else {
 						// 没有映射配置，使用原始 model
 						tlog.Info.Printf("<<%s>> model: %s (no mapping)", username, modelValue)
+					}
+					// 重新序列化 body
+					if newBody, err := json.Marshal(payload); err == nil {
+						body = newBody
 					}
 				}
 			}
@@ -113,4 +121,14 @@ func (p *ProxyHandler) setupAzureRequest(req *http.Request, path string) *http.R
 	req.URL.RawPath = req.URL.EscapedPath()
 
 	return req
+}
+
+// shouldEnableWebSearch 检查模型是否需要启用 web_search 功能
+func (p *ProxyHandler) shouldEnableWebSearch(model string) bool {
+	for _, m := range p.azureConfig.WebSearchModels {
+		if m == model {
+			return true
+		}
+	}
+	return false
 }
