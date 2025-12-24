@@ -52,10 +52,9 @@ func (r *SQLiteRepo) initUsers(users []model.User) error {
 		user.UpdateTime = time.Now()
 		existingUser := r.User.GetByName(user.Username)
 		if existingUser.Username == user.Username {
-			// 用户已存在, 更新密码，更新 CanUseGPT4
-			if existingUser.Password != user.Password || existingUser.CanUseGPT4 != user.CanUseGPT4 {
+			// 用户已存在, 更新密码
+			if existingUser.Password != user.Password {
 				existingUser.Password = user.Password
-				existingUser.CanUseGPT4 = user.CanUseGPT4
 				r.User.db.Save(&existingUser)
 			}
 		} else {

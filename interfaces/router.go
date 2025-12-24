@@ -15,11 +15,9 @@ func SetupRouter(repo *repo.SQLiteRepo, config *config.Config) *http.ServeMux {
 	mux.HandleFunc("/healthz", health.Healthz)
 
 	proxy := handler.NewProxyHandler(repo.User, config.Azure)
-	mux.HandleFunc("/v1/models", proxy.HandleModels)
-	mux.HandleFunc("/v1/chat/completions", proxy.HandleChat)
-	mux.HandleFunc("/v1/responses", proxy.HandleResponses)
-	// Azure native passthrough (whitelist inside handler).
-	mux.HandleFunc("/openai/", proxy.HandleAzureResponsesPassthrough)
+	// 统一代理：/v1/* -> /openai/v1/*，/openai/* 直通
+	mux.HandleFunc("/v1/", proxy.HandleProxy)
+	mux.HandleFunc("/openai/", proxy.HandleProxy)
 
 	return mux
 }

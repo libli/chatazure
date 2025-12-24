@@ -3,10 +3,9 @@ web:
   dbName: chat.db
 azure:
   endpoint: https://xxx.openai.azure.com/
-  api-version: 2023-07-01-preview
   api-key: xxxxxxxxxxxxx
-  # Responses API path (Azure 文档推荐 v1)。如你的资源只支持旧路径，可改为 /openai/responses
-  responses-path: /openai/v1/responses
+  # 模型名称映射：OpenAI 模型名 -> Azure 部署名
+  # 如果 Azure 部署名与 OpenAI 模型名相同，可以不配置
   deployments:
     "gpt-3.5-turbo": gpt-35-turbo
     "gpt-3.5-turbo-16k": gpt-35-turbo-16k
@@ -15,7 +14,5 @@ azure:
 users:
   - username: user1
     password: password1@user1
-    gpt4: true
   - username: user2
     password: password2@user2
-    gpt4: false

@@ -16,16 +16,16 @@ func NewUserLogic(user *repo.UserRepo) *UserLogic {
 	}
 }
 
-// Auth 验证用户，如果验证通过，返回用户是否允许使用gpt-4
-func (u *UserLogic) Auth(password string) (bool, string, bool) {
+// Auth 验证用户
+func (u *UserLogic) Auth(password string) (bool, string) {
 	if password == "" {
-		return false, "", false
+		return false, ""
 	}
 	user := u.user.GetByPassword(password)
 	if user.Password == password {
-		return true, user.Username, user.CanUseGPT4 == 1
+		return true, user.Username
 	}
-	return false, "", false
+	return false, ""
 }
 
 // UpdateCount 更新用户使用次数

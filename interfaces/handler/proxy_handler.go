@@ -30,133 +30,23 @@ func NewProxyHandler(user *repo.UserRepo, config config.AzureConfig) *ProxyHandl
 	}
 }
 
-// HandleChat is the handler for /v1/chat/completions path.
-func (p *ProxyHandler) HandleChat(w http.ResponseWriter, r *http.Request) {
+// HandleProxy is the unified handler for all OpenAI-compatible API requests.
+// It adds /openai prefix to /v1/* paths and rewrites model names to Azure deployment names.
+func (p *ProxyHandler) HandleProxy(w http.ResponseWriter, r *http.Request) {
 	handleCORSRequest(w, r)
 	isAuthenticated, username := p.authRequest(w, r)
 	if !isAuthenticated {
 		return
 	}
 
-	body, _ := io.ReadAll(r.Body)
-
-	// 从 body 中获取模型名称
-	var result map[string]interface{}
-	_ = json.Unmarshal(body, &result)
-	modelValue, _ := result["model"].(string)
-
-	// 将模型名称从请求中映射到部署名称
-	deploymentName, exists := p.azureConfig.Deployments[modelValue]
-	if !exists {
-		http.Error(w, "Unsupported model", http.StatusBadRequest)
-		tlog.Info.Printf("<<%s>> request unsupported model: %s", username, modelValue)
-		return
-	}
-
-	// Restore the io.ReadCloser to its original state
-	// 如果没有这一步，r.Body 会被读取后就为空
-	r.Body = io.NopCloser(bytes.NewBuffer(body))
-
-	// 更新调用次数
-	p.userLogic.UpdateCount(username)
-
-	director := func(req *http.Request) {
-		originURL := req.URL.String()
-		req = p.setupAzureRequest(req, "/openai/deployments/"+deploymentName+"/chat/completions")
-		tlog.Info.Printf("<<%s>> request [%s] proxying: %s -> %s", username, modelValue, originURL, req.URL.String())
-	}
-
-	proxy := &httputil.ReverseProxy{Director: director}
-	proxy.ServeHTTP(w, r)
-}
-
-// HandleResponses is the handler for /v1/responses path.
-// It keeps the OpenAI-compatible request shape and rewrites `model` to Azure deployment name.
-func (p *ProxyHandler) HandleResponses(w http.ResponseWriter, r *http.Request) {
-	handleCORSRequest(w, r)
-	isAuthenticated, username := p.authRequest(w, r)
-	if !isAuthenticated {
-		return
-	}
-
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Failed to read request body", http.StatusBadRequest)
-		return
-	}
-
-	var payload map[string]interface{}
-	if err := json.Unmarshal(body, &payload); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
-
-	modelValue, _ := payload["model"].(string)
-	if modelValue == "" {
-		http.Error(w, "Missing model", http.StatusBadRequest)
-		return
-	}
-
-	// Map OpenAI model name -> Azure deployment name.
-	deploymentName, exists := p.azureConfig.Deployments[modelValue]
-	if !exists {
-		http.Error(w, "Unsupported model", http.StatusBadRequest)
-		tlog.Info.Printf("<<%s>> request unsupported model (responses): %s", username, modelValue)
-		return
-	}
-	payload["model"] = deploymentName
-
-	newBody, err := json.Marshal(payload)
-	if err != nil {
-		http.Error(w, "Failed to encode request", http.StatusInternalServerError)
-		return
-	}
-	r.Body = io.NopCloser(bytes.NewBuffer(newBody))
-	r.ContentLength = int64(len(newBody))
-
-	// 更新调用次数
-	p.userLogic.UpdateCount(username)
-
-	director := func(req *http.Request) {
-		originURL := req.URL.String()
-		req = p.setupAzureRequest(req, p.getAzureResponsesPath())
-		tlog.Info.Printf("<<%s>> request [responses:%s] proxying: %s -> %s", username, modelValue, originURL, req.URL.String())
-	}
-
-	proxy := &httputil.ReverseProxy{Director: director}
-	proxy.ServeHTTP(w, r)
-}
-
-// HandleAzureResponsesPassthrough proxies Azure native responses endpoints under /openai/**,
-// but only allows responses-related paths (whitelist).
-func (p *ProxyHandler) HandleAzureResponsesPassthrough(w http.ResponseWriter, r *http.Request) {
-	handleCORSRequest(w, r)
-	isAuthenticated, username := p.authRequest(w, r)
-	if !isAuthenticated {
-		return
-	}
-
-	if !isAllowedAzureResponsesPath(r.URL.Path) {
-		http.NotFound(w, r)
-		tlog.Warn.Printf("<<%s>> blocked azure passthrough path: %s", username, r.URL.Path)
-		return
-	}
-
-	switch r.Method {
-	case http.MethodPost, http.MethodGet, http.MethodDelete:
-		// allowed
-	default:
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Best-effort model rewrite for POST bodies: if `model` matches OpenAI alias, rewrite to deployment.
+	// 对于有 body 的请求，尝试映射 model 名称
 	if r.Method == http.MethodPost && r.Body != nil {
 		body, err := io.ReadAll(r.Body)
-		if err == nil {
+		if err == nil && len(body) > 0 {
 			var payload map[string]interface{}
 			if json.Unmarshal(body, &payload) == nil {
 				if modelValue, ok := payload["model"].(string); ok && modelValue != "" {
+					// 如果有映射配置，则替换 model 名称
 					if deploymentName, exists := p.azureConfig.Deployments[modelValue]; exists {
 						payload["model"] = deploymentName
 						if newBody, err := json.Marshal(payload); err == nil {
@@ -175,30 +65,18 @@ func (p *ProxyHandler) HandleAzureResponsesPassthrough(w http.ResponseWriter, r 
 
 	director := func(req *http.Request) {
 		originURL := req.URL.String()
-		path := req.URL.Path
-		req = p.setupAzureRequestWithoutApiVersion(req, path)
-		tlog.Info.Printf("<<%s>> request [azure-responses] proxying: %s -> %s", username, originURL, req.URL.String())
+		originPath := req.URL.Path
+
+		// 计算目标路径：/v1/* -> /openai/v1/*，/openai/* 保持不变
+		targetPath := originPath
+		if strings.HasPrefix(originPath, "/v1/") {
+			targetPath = "/openai" + originPath
+		}
+
+		req = p.setupAzureRequest(req, targetPath)
+		tlog.Info.Printf("<<%s>> proxying: %s -> %s", username, originURL, req.URL.String())
 	}
 
-	proxy := &httputil.ReverseProxy{Director: director}
-	proxy.ServeHTTP(w, r)
-}
-
-// HandleModels is the handler for /v1/models path.
-func (p *ProxyHandler) HandleModels(w http.ResponseWriter, r *http.Request) {
-	handleCORSRequest(w, r)
-	isAuthenticated, username := p.authRequest(w, r)
-	if !isAuthenticated {
-		return
-	}
-
-	// https://learn.microsoft.com/en-us/rest/api/cognitiveservices/azureopenaistable/models/list?tabs=HTTP
-	director := func(req *http.Request) {
-		originURL := req.URL.String()
-		req = p.setupAzureRequest(req, "/openai/models")
-
-		tlog.Info.Printf("<<%s>> request proxying: %s -> %s", username, originURL, req.URL.String())
-	}
 	proxy := &httputil.ReverseProxy{Director: director}
 	proxy.ServeHTTP(w, r)
 }
@@ -206,7 +84,7 @@ func (p *ProxyHandler) HandleModels(w http.ResponseWriter, r *http.Request) {
 // authRequest authenticates the request.
 func (p *ProxyHandler) authRequest(w http.ResponseWriter, r *http.Request) (bool, string) {
 	token := extractAuthToken(r)
-	isAuthenticated, username, _ := p.userLogic.Auth(token)
+	isAuthenticated, username := p.userLogic.Auth(token)
 	if !isAuthenticated {
 		tlog.Warn.Printf("unauthorized request: %s", token)
 		response.Unauthorized(w)
@@ -216,59 +94,19 @@ func (p *ProxyHandler) authRequest(w http.ResponseWriter, r *http.Request) (bool
 	return true, username
 }
 
-// setupAzureRequest sets up the Azure request.
+// setupAzureRequest sets up the Azure request (adds prefix, replaces auth header).
 func (p *ProxyHandler) setupAzureRequest(req *http.Request, path string) *http.Request {
-	req = p.setupAzureHeader(req)
-	req = p.setupAzureEndpoint(req)
-	req.URL.Path = path
-	req.URL.RawPath = req.URL.EscapedPath()
-	query := req.URL.Query()
-	// Use Set to avoid duplicating api-version if caller already provided one.
-	query.Set("api-version", p.azureConfig.ApiVersion)
-	req.URL.RawQuery = query.Encode()
-	return req
-}
-
-// setupAzureRequestWithoutApiVersion sets up Azure request without api-version query param.
-// Used for endpoints like /openai/v1/responses that don't require api-version.
-func (p *ProxyHandler) setupAzureRequestWithoutApiVersion(req *http.Request, path string) *http.Request {
-	req = p.setupAzureHeader(req)
-	req = p.setupAzureEndpoint(req)
-	req.URL.Path = path
-	req.URL.RawPath = req.URL.EscapedPath()
-	return req
-}
-
-// setupAzureHeader sets up the proxy request header.
-func (p *ProxyHandler) setupAzureHeader(req *http.Request) *http.Request {
+	// 替换认证 header
 	req.Header.Set("api-key", p.azureConfig.ApiKey)
 	req.Header.Del("Authorization")
-	return req
-}
 
-// setupAzureEndpoint sets up the Azure endpoint.
-func (p *ProxyHandler) setupAzureEndpoint(req *http.Request) *http.Request {
+	// 设置 Azure endpoint
 	parseEndpoint, _ := url.Parse(p.azureConfig.Endpoint)
 	req.Host = parseEndpoint.Host
 	req.URL.Scheme = parseEndpoint.Scheme
 	req.URL.Host = parseEndpoint.Host
+	req.URL.Path = path
+	req.URL.RawPath = req.URL.EscapedPath()
+
 	return req
-}
-
-func (p *ProxyHandler) getAzureResponsesPath() string {
-	if strings.TrimSpace(p.azureConfig.ResponsesPath) != "" {
-		return p.azureConfig.ResponsesPath
-	}
-	// Default to v1 path (recommended by the docs); can be overridden by config.
-	return "/openai/v1/responses"
-}
-
-func isAllowedAzureResponsesPath(path string) bool {
-	if path == "/openai/responses" || path == "/openai/v1/responses" {
-		return true
-	}
-	if strings.HasPrefix(path, "/openai/responses/") || strings.HasPrefix(path, "/openai/v1/responses/") {
-		return true
-	}
-	return false
 }

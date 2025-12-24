@@ -24,14 +24,9 @@ func main() {
 	// 初始化配置文件中的用户，添加到数据库中
 	var users []model.User
 	for _, u := range cfg.Users {
-		canUseGPT4Value := uint8(0) // 默认值为 0 (false)
-		if u.GPT4 {
-			canUseGPT4Value = 1 // 设置为 1 (true)
-		}
 		user := model.User{
-			Username:   u.Username,
-			Password:   u.Password,
-			CanUseGPT4: canUseGPT4Value,
+			Username: u.Username,
+			Password: u.Password,
 		}
 		users = append(users, user)
 	}
