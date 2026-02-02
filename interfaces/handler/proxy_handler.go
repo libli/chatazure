@@ -31,7 +31,7 @@ func NewProxyHandler(user *repo.UserRepo, config config.AzureConfig) *ProxyHandl
 }
 
 // HandleProxy is the unified handler for all OpenAI-compatible API requests.
-// It adds /openai prefix to /v1/* paths and rewrites model names to Azure deployment names.
+// It adds /openai prefix to all paths and rewrites model names to Azure deployment names.
 func (p *ProxyHandler) HandleProxy(w http.ResponseWriter, r *http.Request) {
 	handleCORSRequest(w, r)
 	isAuthenticated, username := p.authRequest(w, r)
@@ -72,10 +72,14 @@ func (p *ProxyHandler) HandleProxy(w http.ResponseWriter, r *http.Request) {
 		originURL := req.URL.String()
 		originPath := req.URL.Path
 
-		// 计算目标路径：/v1/* -> /openai/v1/*，/openai/* 保持不变
+		// 计算目标路径：所有路径加 /openai 前缀，已包含则保持不变
 		targetPath := originPath
-		if strings.HasPrefix(originPath, "/v1/") {
-			targetPath = "/openai" + originPath
+		if !strings.HasPrefix(originPath, "/openai") {
+			if originPath == "/" {
+				targetPath = "/openai/"
+			} else {
+				targetPath = "/openai" + originPath
+			}
 		}
 
 		req = p.setupAzureRequest(req, targetPath)
@@ -102,8 +106,8 @@ func (p *ProxyHandler) authRequest(w http.ResponseWriter, r *http.Request) (bool
 // setupAzureRequest sets up the Azure request (adds prefix, replaces auth header).
 func (p *ProxyHandler) setupAzureRequest(req *http.Request, path string) *http.Request {
 	// 替换认证 header
-	req.Header.Set("api-key", p.azureConfig.ApiKey)
-	req.Header.Del("Authorization")
+	req.Header.Set("Authorization", "Bearer "+p.azureConfig.ApiKey)
+	req.Header.Del("api-key")
 
 	// 设置 Azure endpoint
 	parseEndpoint, _ := url.Parse(p.azureConfig.Endpoint)

@@ -15,9 +15,8 @@ func SetupRouter(repo *repo.SQLiteRepo, config *config.Config) *http.ServeMux {
 	mux.HandleFunc("/healthz", health.Healthz)
 
 	proxy := handler.NewProxyHandler(repo.User, config.Azure)
-	// 统一代理：/v1/* -> /openai/v1/*，/openai/* 直通
-	mux.HandleFunc("/v1/", proxy.HandleProxy)
-	mux.HandleFunc("/openai/", proxy.HandleProxy)
+	// 统一代理：所有路径进入代理层处理
+	mux.HandleFunc("/", proxy.HandleProxy)
 
 	return mux
 }
