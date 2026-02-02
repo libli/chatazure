@@ -39,9 +39,6 @@ func (p *ProxyHandler) HandleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 标记是否使用 web_search 模式
-	useWebSearch := false
-
 	// 对于有 body 的请求，尝试映射 model 名称
 	if r.Method == http.MethodPost && r.Body != nil {
 		body, err := io.ReadAll(r.Body)
@@ -49,19 +46,6 @@ func (p *ProxyHandler) HandleProxy(w http.ResponseWriter, r *http.Request) {
 			var payload map[string]interface{}
 			if json.Unmarshal(body, &payload) == nil {
 				if modelValue, ok := payload["model"].(string); ok && modelValue != "" {
-					// 检查是否需要启用 web_search
-					if p.shouldEnableWebSearch(modelValue) {
-						useWebSearch = true
-						payload["tools"] = []map[string]interface{}{
-							{"type": "web_search_preview"},
-						}
-						// 将 messages 转换为 input（responses API 使用 input 而非 messages）
-						if messages, exists := payload["messages"]; exists {
-							payload["input"] = messages
-							delete(payload, "messages")
-						}
-						tlog.Info.Printf("<<%s>> enabled web_search for model: %s", username, modelValue)
-					}
 					// 如果有映射配置，则替换 model 名称
 					if deploymentName, exists := p.azureConfig.Deployments[modelValue]; exists {
 						payload["model"] = deploymentName
@@ -88,16 +72,10 @@ func (p *ProxyHandler) HandleProxy(w http.ResponseWriter, r *http.Request) {
 		originURL := req.URL.String()
 		originPath := req.URL.Path
 
-		var targetPath string
-		if useWebSearch {
-			// web_search 模式使用 /openai/v1/responses 端点
-			targetPath = "/openai/v1/responses"
-		} else {
-			// 计算目标路径：/v1/* -> /openai/v1/*，/openai/* 保持不变
-			targetPath = originPath
-			if strings.HasPrefix(originPath, "/v1/") {
-				targetPath = "/openai" + originPath
-			}
+		// 计算目标路径：/v1/* -> /openai/v1/*，/openai/* 保持不变
+		targetPath := originPath
+		if strings.HasPrefix(originPath, "/v1/") {
+			targetPath = "/openai" + originPath
 		}
 
 		req = p.setupAzureRequest(req, targetPath)
@@ -138,12 +116,3 @@ func (p *ProxyHandler) setupAzureRequest(req *http.Request, path string) *http.R
 	return req
 }
 
-// shouldEnableWebSearch 检查模型是否需要启用 web_search 功能
-func (p *ProxyHandler) shouldEnableWebSearch(model string) bool {
-	for _, m := range p.azureConfig.WebSearchModels {
-		if m == model {
-			return true
-		}
-	}
-	return false
-}
